@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "612070191376",
+    "project_id": "nutrimarket",
+    "storage_bucket": "nutrimarket.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:612070191376:android:21dbbeec46ce7568c13595",
+        "android_client_info": {
+          "package_name": "com.vyroandroid"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApiPV5cIn-c09rtxqucN4PMvS9H1pK4go"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
@@ -28,6 +29,7 @@ const MEAL_FIELDS = [
 ]
 
 export default function DietPlanScreen({ navigation, route }) {
+  const { t } = useLanguage()
   const { userProfile } = route?.params || {}
   const [tab, setTab] = useState(0)
   const [liked, setLiked] = useState('')

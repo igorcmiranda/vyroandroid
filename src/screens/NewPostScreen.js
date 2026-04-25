@@ -1,24 +1,25 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  TextInput, ScrollView, FlatList,
-  ActivityIndicator, Alert, Dimensions, Image
+  TextInput, ScrollView, ActivityIndicator,
+  Alert, Dimensions, Image
 } from 'react-native'
-import { VideoView, useVideoPlayer } from 'react-native-video'
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker'
 import { PermissionsAndroid, Platform } from 'react-native'
 import storage from '@react-native-firebase/storage'
 import firestore from '@react-native-firebase/firestore'
 import auth from '@react-native-firebase/auth'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { VideoPlayerComponent } from '../components/VideoPlayer'
 
 const { width } = Dimensions.get('window')
 
 export default function NewPostScreen({ navigation }) {
-  const [medias, setMedias] = useState([]) // array de {uri, type: 'image'|'video'}
+  const { t } = useLanguage()
+  const [medias, setMedias] = useState([])
   const [caption, setCaption] = useState('')
   const [posting, setPosting] = useState(false)
+  const [currentIndex, setCurrentIndex] = useState(0)
   const uid = auth().currentUser?.uid
 
   async function pickMedia(fromCamera) {
@@ -35,11 +36,9 @@ export default function NewPostScreen({ navigation }) {
     }
 
     const options = {
-      mediaType: 'mixed',
+      mediaType: 'photo',
       quality: 0.8,
-      videoQuality: 'medium',
-      durationLimit: 60,
-      selectionLimit: 10 - medias.length, // permite múltiplos
+      selectionLimit: 10 - medias.length,
     }
 
     const launch = fromCamera ? launchCamera : launchImageLibrary
@@ -50,7 +49,8 @@ export default function NewPostScreen({ navigation }) {
         const newItems = response.assets.map(asset => ({
           uri: asset.uri,
           type: asset.type?.includes('video') ? 'video' : 'image',
-          name: asset.fileName || `media_${Date.now()}`
+          name: asset.fileName || `media_${Date.now()}`,
+          thumbnail: asset.type?.includes('video') ? null : asset.uri,
         }))
         setMedias(prev => [...prev, ...newItems].slice(0, 10))
       }
@@ -59,11 +59,12 @@ export default function NewPostScreen({ navigation }) {
 
   function removeMedia(index) {
     setMedias(prev => prev.filter((_, i) => i !== index))
+    if (currentIndex >= medias.length - 1) setCurrentIndex(Math.max(0, medias.length - 2))
   }
 
   async function post() {
     if (medias.length === 0) {
-      Alert.alert('Atenção', 'Adicione pelo menos uma foto ou vídeo.')
+      Alert.alert('Atenção', 'Adicione pelo menos uma foto.')
       return
     }
 
@@ -72,34 +73,41 @@ export default function NewPostScreen({ navigation }) {
       const userDoc = await firestore().collection('users').doc(uid).get()
       const userData = userDoc.data()
 
-      // Upload de todos os arquivos
-      const uploadedMedia = await Promise.all(
-        medias.map(async (media, index) => {
-          const ext = media.type === 'video' ? 'mp4' : 'jpg'
-          const ref = storage().ref(`posts/${uid}/${Date.now()}_${index}.${ext}`)
+      const uploadedMedia = []
+
+      for (let index = 0; index < medias.length; index++) {
+        const media = medias[index]
+        const ext = media.type === 'video' ? 'mp4' : 'jpg'
+        const filename = `posts/${uid}/${Date.now()}_${index}.${ext}`
+        const ref = storage().ref(filename)
+
+        try {
           await ref.putFile(media.uri)
           const url = await ref.getDownloadURL()
-          return { url, type: media.type }
-        })
-      )
+          uploadedMedia.push({ url, type: media.type })
+        } catch (uploadError) {
+          console.log(`Erro upload item ${index}:`, uploadError)
+          Alert.alert('Erro', `Não foi possível fazer upload do item ${index + 1}.`)
+          setPosting(false)
+          return
+        }
+      }
 
-      // Salva o post com array de mídias
       await firestore().collection('posts').add({
         userID: uid,
         userName: userData.name,
-        username: userData.username,
+        username: userData.username || '',
         userAvatarURL: userData.avatarURL || '',
         isVerified: userData.isVerified || false,
         caption,
-        // Compatibilidade com posts antigos
         mediaURL: uploadedMedia[0].url,
         mediaType: uploadedMedia[0].type,
-        // Novo: array de mídias para carrossel
         mediaItems: uploadedMedia,
         mediaCount: uploadedMedia.length,
+        isPinned: false,
         likesCount: 0,
         commentsCount: 0,
-        createdAt: firestore.Timestamp.now()
+        createdAt: firestore.Timestamp.now(),
       })
 
       navigation.goBack()
@@ -110,6 +118,8 @@ export default function NewPostScreen({ navigation }) {
     setPosting(false)
   }
 
+  const currentMedia = medias[currentIndex]
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
@@ -117,10 +127,7 @@ export default function NewPostScreen({ navigation }) {
           <Text style={styles.cancel}>Cancelar</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Nova publicação</Text>
-        <TouchableOpacity
-          onPress={post}
-          disabled={posting || medias.length === 0}
-        >
+        <TouchableOpacity onPress={post} disabled={posting || medias.length === 0}>
           {posting
             ? <ActivityIndicator size="small" color="#4A6FE8" />
             : <Text style={[styles.postBtn, medias.length === 0 && { color: '#ccc' }]}>
@@ -130,52 +137,72 @@ export default function NewPostScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView>
-        {/* Preview das mídias selecionadas */}
+      <ScrollView showsVerticalScrollIndicator={false}>
+
+        {/* Preview da mídia atual */}
         {medias.length > 0 && (
           <View>
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              style={styles.previewScroll}
-            >
-              {medias.map((media, index) => (
-                <View key={index} style={styles.previewItem}>
-                  {media.type === 'video' ? (
-                    <VideoPlayerComponent
-                      uri={media.uri}
-                      style={styles.preview}
-                    />
-                  ) : (
-                    <Image
-                      source={{ uri: media.uri }}
-                      style={styles.preview}
-                      resizeMode="cover"
-                    />
-                  )}
-                  <TouchableOpacity
-                    style={styles.removeBtn}
-                    onPress={() => removeMedia(index)}
-                  >
-                    <Text style={styles.removeBtnText}>✕</Text>
-                  </TouchableOpacity>
-                  <View style={styles.mediaTypeBadge}>
-                    <Text style={styles.mediaTypeBadgeText}>
-                      {media.type === 'video' ? '🎬' : '📷'} {index + 1}/{medias.length}
-                    </Text>
-                  </View>
+            {/* Preview principal */}
+            <View style={styles.previewMain}>
+              {currentMedia?.type === 'video' ? (
+                <View style={styles.videoPreview}>
+                  <Text style={styles.videoPreviewIcon}>🎬</Text>
+                  <Text style={styles.videoPreviewText}>Vídeo selecionado</Text>
+                  <Text style={styles.videoPreviewSub}>O vídeo será reproduzido no feed</Text>
                 </View>
-              ))}
-            </ScrollView>
+              ) : (
+                <Image
+                  source={{ uri: currentMedia?.uri }}
+                  style={styles.previewImage}
+                  resizeMode="cover"
+                />
+              )}
 
-            {/* Bolinhas indicadoras */}
+              {/* Contador */}
+              {medias.length > 1 && (
+                <View style={styles.counter}>
+                  <Text style={styles.counterText}>{currentIndex + 1}/{medias.length}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Miniaturas horizontais para selecionar */}
             {medias.length > 1 && (
-              <View style={styles.dots}>
-                {medias.map((_, i) => (
-                  <View key={i} style={[styles.dot, { opacity: 1 }]} />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.thumbsScroll}
+                contentContainerStyle={styles.thumbsContent}
+              >
+                {medias.map((media, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => setCurrentIndex(index)}
+                    style={[styles.thumbItem, index === currentIndex && styles.thumbItemActive]}
+                  >
+                    {media.type === 'video' ? (
+                      <View style={[styles.thumb, styles.thumbVideo]}>
+                        <Text style={styles.thumbVideoIcon}>🎬</Text>
+                      </View>
+                    ) : (
+                      <Image source={{ uri: media.uri }} style={styles.thumb} resizeMode="cover" />
+                    )}
+                    <TouchableOpacity
+                      style={styles.removeThumb}
+                      onPress={() => removeMedia(index)}
+                    >
+                      <Text style={styles.removeThumbText}>✕</Text>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
                 ))}
-              </View>
+              </ScrollView>
+            )}
+
+            {/* Botão remover item único */}
+            {medias.length === 1 && (
+              <TouchableOpacity style={styles.removeBtn} onPress={() => removeMedia(0)}>
+                <Text style={styles.removeBtnText}>✕ Remover</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -194,7 +221,7 @@ export default function NewPostScreen({ navigation }) {
 
         {medias.length > 0 && (
           <Text style={styles.mediaCount}>
-            {medias.length}/10 {medias.length === 10 ? '(máximo atingido)' : 'itens'}
+            {medias.length}/10 itens selecionados{medias.length === 10 ? ' (máximo)' : ''}
           </Text>
         )}
 
@@ -211,6 +238,14 @@ export default function NewPostScreen({ navigation }) {
           />
           <Text style={styles.captionCount}>{caption.length}/500</Text>
         </View>
+
+        {/* Upload progress */}
+        {posting && (
+          <View style={styles.uploadingContainer}>
+            <ActivityIndicator color="#4A6FE8" />
+            <Text style={styles.uploadingText}>Publicando...</Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
@@ -221,54 +256,93 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', padding: 16,
-    backgroundColor: '#fff', borderBottomWidth: 0.5, borderBottomColor: '#E5E5EA'
+    backgroundColor: '#fff', borderBottomWidth: 0.5, borderBottomColor: '#E5E5EA',
   },
   cancel: { color: '#FF3B30', fontSize: 15 },
   title: { fontSize: 16, fontWeight: '700' },
   postBtn: { color: '#4A6FE8', fontSize: 15, fontWeight: '700' },
-  previewScroll: { width },
-  previewItem: { width, position: 'relative' },
-  preview: { width, height: width },
-  removeBtn: {
+
+  // Preview principal
+  previewMain: {
+    width,
+    height: width,
+    backgroundColor: '#000',
+    position: 'relative',
+  },
+  previewImage: { width, height: width },
+  videoPreview: {
+    width, height: width,
+    backgroundColor: '#1a1a2e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  videoPreviewIcon: { fontSize: 64 },
+  videoPreviewText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  videoPreviewSub: { color: 'rgba(255,255,255,0.6)', fontSize: 13 },
+  counter: {
     position: 'absolute', top: 12, right: 12,
     backgroundColor: 'rgba(0,0,0,0.6)',
-    width: 28, height: 28, borderRadius: 14,
-    justifyContent: 'center', alignItems: 'center'
+    borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3,
   },
-  removeBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  mediaTypeBadge: {
-    position: 'absolute', bottom: 12, left: 12,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3
+  counterText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+
+  // Miniaturas
+  thumbsScroll: { backgroundColor: '#fff' },
+  thumbsContent: { padding: 10, gap: 8 },
+  thumbItem: {
+    position: 'relative',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  mediaTypeBadgeText: { color: '#fff', fontSize: 11 },
-  dots: {
-    flexDirection: 'row', justifyContent: 'center',
-    gap: 6, paddingVertical: 8, backgroundColor: '#fff'
+  thumbItemActive: { borderColor: '#4A6FE8' },
+  thumb: { width: 64, height: 64, borderRadius: 6, backgroundColor: '#E5E5EA' },
+  thumbVideo: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a2e' },
+  thumbVideoIcon: { fontSize: 24 },
+  removeThumb: {
+    position: 'absolute', top: 2, right: 2,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center', alignItems: 'center',
   },
-  dot: {
-    width: 6, height: 6, borderRadius: 3, backgroundColor: '#4A6FE8'
+  removeThumbText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+
+  // Botão remover único
+  removeBtn: {
+    backgroundColor: '#fff', padding: 12, alignItems: 'center',
   },
+  removeBtnText: { color: '#FF3B30', fontWeight: '600', fontSize: 14 },
+
+  // Botões adicionar
   addButtons: {
     flexDirection: 'row', gap: 12, padding: 16,
-    backgroundColor: '#fff', marginTop: 8
+    backgroundColor: '#fff', marginTop: 8,
   },
   addBtn: {
     flex: 1, backgroundColor: '#F2F2F7', borderRadius: 14,
-    padding: 16, alignItems: 'center', gap: 6
+    padding: 16, alignItems: 'center', gap: 6,
   },
   addBtnIcon: { fontSize: 28 },
   addBtnText: { fontSize: 13, fontWeight: '600', color: '#333' },
   mediaCount: {
     textAlign: 'center', fontSize: 12,
-    color: '#999', paddingBottom: 8, backgroundColor: '#fff'
+    color: '#999', paddingVertical: 8, backgroundColor: '#fff',
   },
-  captionContainer: {
-    backgroundColor: '#fff', marginTop: 8, padding: 16
-  },
+
+  // Caption
+  captionContainer: { backgroundColor: '#fff', marginTop: 8, padding: 16 },
   captionInput: {
-    fontSize: 15, color: '#000', minHeight: 100,
-    textAlignVertical: 'top'
+    fontSize: 15, color: '#000', minHeight: 100, textAlignVertical: 'top',
   },
-  captionCount: { fontSize: 11, color: '#999', textAlign: 'right', marginTop: 4 }
+  captionCount: { fontSize: 11, color: '#999', textAlign: 'right', marginTop: 4 },
+
+  // Upload
+  uploadingContainer: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 10, padding: 16, backgroundColor: '#EEF2FF', margin: 16, borderRadius: 12,
+  },
+  uploadingText: { color: '#4A6FE8', fontWeight: '600' },
 })
+

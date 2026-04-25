@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -15,6 +16,7 @@ const INCREMENTS = [
 ]
 
 export default function WaterScreen({ route }) {
+  const { t } = useLanguage()
   const { weight = 70, age = 30 } = route?.params || {}
   const [consumed, setConsumed] = useState(0)
   const [celebrated, setCelebrated] = useState(false)

@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
@@ -8,6 +9,7 @@ import firestore from '@react-native-firebase/firestore'
 import auth from '@react-native-firebase/auth'
 
 export default function PostDetailScreen({ route, navigation }) {
+  const { t } = useLanguage()
   const { post } = route.params
   const [comments, setComments] = useState([])
   const [commentText, setCommentText] = useState('')

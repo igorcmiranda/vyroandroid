@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
@@ -19,6 +20,7 @@ const DAYS_PT = {
 }
 
 export default function BodyAnalysisScreen({ navigation, route }) {
+  const { t } = useLanguage()
   const { userProfile } = route?.params || {}
   const [tab, setTab] = useState(0)
   const [image, setImage] = useState(null)

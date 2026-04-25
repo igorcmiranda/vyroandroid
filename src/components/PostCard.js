@@ -1,26 +1,29 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet,
   Dimensions, Modal, FlatList, TextInput,
-  ActivityIndicator, KeyboardAvoidingView, Platform
+  ActivityIndicator, KeyboardAvoidingView, Platform,
+  TouchableWithoutFeedback, Alert
 } from 'react-native'
 import FastImage from 'react-native-fast-image'
 import firestore from '@react-native-firebase/firestore'
 import auth from '@react-native-firebase/auth'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { VideoPlayerComponent } from '../components/VideoPlayer'
+import { useLanguage } from '../context/LanguageContext'
 
 const { width } = Dimensions.get('window')
 
-// ─── Subcomponentes fora do PostCard ──────────────────────────
+// ─── Subcomponentes ────────────────────────────────────────────
 
-function CarouselItem({ item }) {
+function CarouselItem({ item, isVisible }) {
   if (item.type === 'video') {
     return (
       <View style={{ width, height: width * 1.25 }}>
         <VideoPlayerComponent
           uri={item.url}
           style={{ width, height: width * 1.25 }}
+          isVisible={isVisible}
         />
       </View>
     )
@@ -34,12 +37,13 @@ function CarouselItem({ item }) {
   )
 }
 
-function SimpleMedia({ post }) {
+function SimpleMedia({ post, isVisible }) {
   if (post.mediaType === 'video') {
     return (
       <VideoPlayerComponent
         uri={post.mediaURL}
         style={{ width, height: width * 1.25 }}
+        isVisible={isVisible}
       />
     )
   }
@@ -52,7 +56,7 @@ function SimpleMedia({ post }) {
   )
 }
 
-function Carousel({ items, currentMedia, onScroll }) {
+function Carousel({ items, currentMedia, onScroll, isVisible }) {
   return (
     <View>
       <FlatList
@@ -65,30 +69,23 @@ function Carousel({ items, currentMedia, onScroll }) {
         decelerationRate="fast"
         snapToInterval={width}
         snapToAlignment="center"
-        getItemLayout={(_, index) => ({
-          length: width,
-          offset: width * index,
-          index
-        })}
+        getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
         onMomentumScrollEnd={e => {
           const index = Math.round(e.nativeEvent.contentOffset.x / width)
           onScroll(index)
         }}
-        renderItem={({ item }) => <CarouselItem item={item} />}
+        renderItem={({ item, index }) => (
+          <CarouselItem item={item} isVisible={isVisible && index === currentMedia} />
+        )}
       />
       <View style={styles.mediaCounter}>
-        <Text style={styles.mediaCounterText}>
-          {currentMedia + 1}/{items.length}
-        </Text>
+        <Text style={styles.mediaCounterText}>{currentMedia + 1}/{items.length}</Text>
       </View>
       <View style={styles.carouselDots}>
         {items.map((_, i) => (
           <View
             key={i}
-            style={[
-              styles.carouselDot,
-              i === currentMedia && styles.carouselDotActive
-            ]}
+            style={[styles.carouselDot, i === currentMedia && styles.carouselDotActive]}
           />
         ))}
       </View>
@@ -99,9 +96,9 @@ function Carousel({ items, currentMedia, onScroll }) {
 // ─── PostCard principal ────────────────────────────────────────
 
 export default function PostCard({
-  post, onLike, onFollow, isFollowing, onPressProfile
+  post, isVisible, onLike, onFollow, isFollowing, onPressProfile
 }) {
-
+  const { t } = useLanguage()
   const [showComments, setShowComments] = useState(false)
   const [showFullCaption, setShowFullCaption] = useState(false)
   const [isLiked, setIsLiked] = useState(false)
@@ -112,10 +109,23 @@ export default function PostCard({
   const [sending, setSending] = useState(false)
   const [uid, setUid] = useState(null)
   const [currentMedia, setCurrentMedia] = useState(0)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [pinning, setPinning] = useState(false)
+
   const hasCarousel = post.mediaItems && post.mediaItems.length > 1
 
+  // Border dourada para posts fixados
+  const isPinned = post.isPinned === true
+
   useEffect(() => {
-    setUid(auth().currentUser?.uid)
+    const u = auth().currentUser?.uid
+    setUid(u)
+    // Verifica se é admin
+    if (u) {
+      firestore().collection('users').doc(u).get().then(doc => {
+        setIsAdmin(doc.data()?.isAdmin || false)
+      })
+    }
   }, [])
 
   useEffect(() => {
@@ -141,8 +151,7 @@ export default function PostCard({
     setIsLiked(newLiked)
     setLikesCount(prev => newLiked ? prev + 1 : Math.max(0, prev - 1))
     try {
-      const likeRef = firestore().collection('posts').doc(post.id)
-        .collection('likes').doc(uid)
+      const likeRef = firestore().collection('posts').doc(post.id).collection('likes').doc(uid)
       const postRef = firestore().collection('posts').doc(post.id)
       if (!newLiked) {
         await likeRef.delete()
@@ -179,14 +188,13 @@ export default function PostCard({
     setSending(true)
     const userDoc = await firestore().collection('users').doc(uid).get()
     const userData = userDoc.data()
-    await firestore().collection('posts').doc(post.id)
-      .collection('comments').add({
-        userID: uid,
-        userName: userData?.name || '',
-        userAvatarURL: userData?.avatarURL || '',
-        text: commentText.trim(),
-        createdAt: firestore.Timestamp.now()
-      })
+    await firestore().collection('posts').doc(post.id).collection('comments').add({
+      userID: uid,
+      userName: userData?.name || '',
+      userAvatarURL: userData?.avatarURL || '',
+      text: commentText.trim(),
+      createdAt: firestore.Timestamp.now()
+    })
     await firestore().collection('posts').doc(post.id).update({
       commentsCount: firestore.FieldValue.increment(1)
     })
@@ -196,25 +204,58 @@ export default function PostCard({
   }
 
   async function deleteComment(commentID) {
-    await firestore().collection('posts').doc(post.id)
-      .collection('comments').doc(commentID).delete()
+    await firestore().collection('posts').doc(post.id).collection('comments').doc(commentID).delete()
     await firestore().collection('posts').doc(post.id).update({
       commentsCount: firestore.FieldValue.increment(-1)
     })
     setComments(prev => prev.filter(c => c.id !== commentID))
   }
 
-  if (!post.mediaURL && (!post.mediaItems || post.mediaItems.length === 0)) {
-    return null
+  async function handlePinPost() {
+    Alert.alert(
+      'Fixar publicação',
+      'Fixar este post para todos os usuários por 1 hora?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Fixar',
+          onPress: async () => {
+            setPinning(true)
+            try {
+              const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
+              await firestore().collection('appConfig').doc('feedPinnedPost').set({
+                postID: post.id,
+                pinnedBy: uid,
+                pinnedAt: firestore.Timestamp.now(),
+                expiresAt: firestore.Timestamp.fromDate(expiresAt),
+              })
+              Alert.alert('✅ Fixado!', 'Post fixado por 1 hora para todos os usuários.')
+            } catch (e) {
+              Alert.alert('Erro', 'Não foi possível fixar o post.')
+            }
+            setPinning(false)
+          }
+        }
+      ]
+    )
   }
 
+  if (!post.mediaURL && (!post.mediaItems || post.mediaItems.length === 0)) return null
+
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, isPinned && styles.cardPinned]}>
+      {/* Indicador de fixado */}
+      {isPinned && (
+        <View style={styles.pinnedBanner}>
+          <Text style={styles.pinnedBannerText}>📌 Fixado</Text>
+        </View>
+      )}
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.userInfo} onPress={onPressProfile}>
           <FastImage
-            style={styles.avatar}
+            style={[styles.avatar, isPinned && styles.avatarPinned]}
             source={post.userAvatarURL
               ? { uri: post.userAvatarURL, priority: FastImage.priority.normal }
               : require('../assets/avatar_placeholder.png')
@@ -222,39 +263,53 @@ export default function PostCard({
           />
           <View>
             <View style={styles.nameRow}>
-              <Text style={styles.username}>
+              <Text style={[styles.username, isPinned && styles.usernamePinned]}>
                 {post.username || post.userName}
               </Text>
               {post.isVerified && <Text style={styles.verified}>✦</Text>}
             </View>
-            {post.city ? (
-              <Text style={styles.location}>📍 {post.city}</Text>
-            ) : null}
+            {post.city ? <Text style={styles.location}>📍 {post.city}</Text> : null}
           </View>
         </TouchableOpacity>
 
-        {uid !== post.userID && (
-          <TouchableOpacity
-            style={[styles.followBtn, isFollowing && styles.followingBtn]}
-            onPress={onFollow}
-          >
-            <Text style={[styles.followText, isFollowing && styles.followingText]}>
-              {isFollowing ? t.feed.following : t.feed.follow}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerRight}>
+          {uid !== post.userID && (
+            <TouchableOpacity
+              style={[styles.followBtn, isFollowing && styles.followingBtn]}
+              onPress={onFollow}
+            >
+              <Text style={[styles.followText, isFollowing && styles.followingText]}>
+                {isFollowing ? t.feed.following : t.feed.follow}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Menu admin — fixar post */}
+          {isAdmin && (
+            <TouchableOpacity
+              style={styles.pinBtn}
+              onPress={handlePinPost}
+              disabled={pinning}
+            >
+              <Text style={styles.pinBtnText}>{pinning ? '⏳' : '📌'}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Mídia */}
-      {hasCarousel ? (
-        <Carousel
-          items={post.mediaItems}
-          currentMedia={currentMedia}
-          onScroll={setCurrentMedia}
-        />
-      ) : (
-        <SimpleMedia post={post} />
-      )}
+      <View>
+        {hasCarousel ? (
+          <Carousel
+            items={post.mediaItems}
+            currentMedia={currentMedia}
+            onScroll={setCurrentMedia}
+            isVisible={isVisible} // 🔥 agora vem da FlatList
+          />
+        ) : (
+          <SimpleMedia post={post} isVisible={isVisible} />
+        )}
+      </View>
 
       {/* Badge boas-vindas */}
       {post.isWelcome && (
@@ -289,9 +344,7 @@ export default function PostCard({
           onPress={() => setShowFullCaption(!showFullCaption)}
         >
           <Text style={styles.caption} numberOfLines={showFullCaption ? 0 : 2}>
-            <Text style={styles.captionUsername}>
-              {post.username || post.userName}{' '}
-            </Text>
+            <Text style={styles.captionUsername}>{post.username || post.userName}{' '}</Text>
             {post.caption}
           </Text>
         </TouchableOpacity>
@@ -312,7 +365,7 @@ export default function PostCard({
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Comentários</Text>
                 <TouchableOpacity onPress={() => setShowComments(false)}>
-                <Text style={{ color: '#FF3B30', fontSize: 15 }}>{t.common.close}</Text>
+                  <Text style={{ color: '#FF3B30', fontSize: 15 }}>{t.common.close}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -324,7 +377,17 @@ export default function PostCard({
                   keyExtractor={item => item.id}
                   keyboardShouldPersistTaps="handled"
                   renderItem={({ item }) => (
-                    <View style={styles.commentRow}>
+                    <TouchableOpacity
+                      style={styles.commentRow}
+                      onLongPress={() => {
+                        if (item.userID === uid) {
+                          Alert.alert('Excluir comentário?', '', [
+                            { text: 'Cancelar', style: 'cancel' },
+                            { text: 'Excluir', style: 'destructive', onPress: () => deleteComment(item.id) }
+                          ])
+                        }
+                      }}
+                    >
                       <FastImage
                         style={styles.commentAvatar}
                         source={item.userAvatarURL
@@ -341,16 +404,14 @@ export default function PostCard({
                           <Text style={{ color: '#FF3B30', fontSize: 12 }}>{t.common.delete}</Text>
                         </TouchableOpacity>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   )}
                   ListEmptyComponent={() => (
                     <View style={styles.emptyComments}>
                       <Text style={{ color: '#999' }}>Nenhum comentário ainda</Text>
                     </View>
                   )}
-                  ItemSeparatorComponent={() => (
-                    <View style={{ height: 0.5, backgroundColor: '#E5E5EA' }} />
-                  )}
+                  ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: '#E5E5EA' }} />}
                 />
               )}
 
@@ -369,10 +430,9 @@ export default function PostCard({
                 >
                   {sending
                     ? <ActivityIndicator size="small" color="#4A6FE8" />
-                    : <Text style={[
-                        styles.sendBtn,
-                        !commentText.trim() && styles.sendBtnDisabled
-                      ]}>{t.common.send}</Text>
+                    : <Text style={[styles.sendBtn, !commentText.trim() && styles.sendBtnDisabled]}>
+                        {t.common.send}
+                      </Text>
                   }
                 </TouchableOpacity>
               </View>
@@ -386,39 +446,71 @@ export default function PostCard({
 
 const styles = StyleSheet.create({
   card: { backgroundColor: '#fff', marginBottom: 8 },
+  cardPinned: {
+    borderWidth: 2,
+    borderColor: '#FFD700',
+  },
+  pinnedBanner: {
+    backgroundColor: '#FFD700',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pinnedBannerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#7A5900',
+  },
   header: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', padding: 12
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
   },
   userInfo: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#E5E5EA' },
+  avatar: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: '#E5E5EA',
+    borderWidth: 2, borderColor: '#34C75930',
+  },
+  avatarPinned: {
+    borderWidth: 2.5,
+    borderColor: '#FFD700',
+  },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   username: { fontSize: 14, fontWeight: '600' },
+  usernamePinned: { color: '#B8860B' },
   verified: { color: '#FFD700', fontSize: 13 },
   location: { fontSize: 11, color: '#888', marginTop: 1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   followBtn: {
     backgroundColor: '#34C759', borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 6
+    paddingHorizontal: 14, paddingVertical: 6,
   },
   followingBtn: { backgroundColor: '#E5E5EA' },
   followText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   followingText: { color: '#666' },
-  media: { width, height: width * 1.25 },
+  pinBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#FFF3CD',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  pinBtnText: { fontSize: 15 },
   carouselDots: {
     flexDirection: 'row', justifyContent: 'center',
-    gap: 5, paddingVertical: 8, backgroundColor: '#fff'
+    gap: 5, paddingVertical: 8, backgroundColor: '#fff',
   },
   carouselDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#E5E5EA' },
   carouselDotActive: { width: 18, borderRadius: 3, backgroundColor: '#4A6FE8' },
   mediaCounter: {
     position: 'absolute', top: 10, right: 10,
     backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3
+    borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3,
   },
   mediaCounterText: { color: '#fff', fontSize: 11, fontWeight: '600' },
   welcomeBadge: {
     backgroundColor: '#EEF2FF', paddingHorizontal: 12,
-    paddingVertical: 6, marginHorizontal: 12, marginTop: 4, borderRadius: 8
+    paddingVertical: 6, marginHorizontal: 12, marginTop: 4, borderRadius: 8,
   },
   welcomeText: { color: '#4A6FE8', fontSize: 12, fontWeight: '600' },
   actions: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 16 },
@@ -433,12 +525,12 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', padding: 16,
-    backgroundColor: '#fff', borderBottomWidth: 0.5, borderBottomColor: '#E5E5EA'
+    backgroundColor: '#fff', borderBottomWidth: 0.5, borderBottomColor: '#E5E5EA',
   },
   modalTitle: { fontSize: 17, fontWeight: '700' },
   commentRow: {
     flexDirection: 'row', alignItems: 'flex-start',
-    padding: 14, backgroundColor: '#fff', gap: 10
+    padding: 14, backgroundColor: '#fff', gap: 10,
   },
   commentAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E5E5EA' },
   commentUser: { fontSize: 13, fontWeight: '700', marginBottom: 2 },
@@ -447,12 +539,12 @@ const styles = StyleSheet.create({
   commentInput: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#fff', padding: 12,
-    borderTopWidth: 0.5, borderTopColor: '#E5E5EA', gap: 10
+    borderTopWidth: 0.5, borderTopColor: '#E5E5EA', gap: 10,
   },
   commentField: {
     flex: 1, backgroundColor: '#F2F2F7', borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 8, fontSize: 14
+    paddingHorizontal: 14, paddingVertical: 8, fontSize: 14,
   },
   sendBtn: { color: '#4A6FE8', fontWeight: '700', fontSize: 15 },
-  sendBtnDisabled: { color: '#ccc' }
+  sendBtnDisabled: { color: '#ccc' },
 })

@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
@@ -10,6 +11,7 @@ import ClaudeManager from '../managers/ClaudeManager'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 export default function MealAnalysisScreen({ navigation, route }) {
+  const { t } = useLanguage()
   const { userProfile } = route.params || {}
   const [image, setImage] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)

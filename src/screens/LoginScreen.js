@@ -5,12 +5,14 @@ import {
 } from 'react-native'
 import AuthManager from '../managers/AuthManager'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from "../context/LanguageContext"
 import { LANGUAGES } from '../i18n/translations'
 
 export default function LoginScreen({ navigation }) {
   const [credential, setCredential] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const { t, language, changeLanguage } = useLanguage()
   const [showLanguages, setShowLanguages] = useState(false)
 
 

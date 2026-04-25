@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, ScrollView, StyleSheet,
@@ -14,6 +15,7 @@ const { width } = Dimensions.get('window')
 const THUMB = (width - 4) / 3
 
 export default function PublicProfileScreen({ route, navigation }) {
+  const { t } = useLanguage()
   const { userID } = route.params
   const [user, setUser] = useState(null)
   const [posts, setPosts] = useState([])

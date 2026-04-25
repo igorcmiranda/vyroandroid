@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, ScrollView, StyleSheet,
@@ -16,10 +17,11 @@ import { PermissionsAndroid, Platform } from 'react-native'
 const { width } = Dimensions.get('window')
 const THUMB = (width - 4) / 3
 
-const GOALS = [t.profile.loseWeight, t.profile.maintain, t.profile.gainMuscle]
-const SEX_OPTIONS = [t.profile.male, t.profile.female]
+const GOALS = ["Perder peso", "Manter peso", "Ganhar massa"]
+const SEX_OPTIONS = ["Masculino", "Feminino"]
 
 export default function ProfileScreen({ navigation }) {
+  const { t } = useLanguage()
   const [user, setUser] = useState(null)
   const [posts, setPosts] = useState([])
   const [trophies, setTrophies] = useState([])

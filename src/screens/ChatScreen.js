@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useEffect, useRef } from 'react'
 import {
   View, Text, FlatList, TextInput,
@@ -9,6 +10,7 @@ import MessagesManager from '../managers/MessagesManager'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 export default function ChatScreen({ route, navigation }) {
+  const { t } = useLanguage()
   const { conversationID, otherUserID, otherUserName, otherUserAvatar } = route.params
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')

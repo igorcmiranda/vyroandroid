@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useRef } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
@@ -10,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 
 export default function RegisterScreen({ navigation }) {
+  const { t } = useLanguage()
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')

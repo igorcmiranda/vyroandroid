@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, FlatList, StyleSheet,
@@ -10,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 
 export default function NotificationsScreen({ navigation }) {
+  const { t } = useLanguage()
   const [notifications, setNotifications] = useState([])
   const [refreshing, setRefreshing] = useState(false)
   const uid = auth().currentUser?.uid

@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, ScrollView, StyleSheet,
@@ -14,6 +15,7 @@ const LIMITS = {
 }
 
 export default function UsageScreen({ navigation }) {
+  const { t } = useLanguage()
   const [usage, setUsage] = useState({ mealAnalysesToday: 0, dietPlansThisMonth: 0, bodyAnalysesThisMonth: 0 })
   const [plan, setPlan] = useState('none')
   const uid = auth().currentUser?.uid

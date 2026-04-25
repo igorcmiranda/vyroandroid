@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, FlatList, TouchableOpacity,
@@ -11,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 
 export default function MessagesScreen({ navigation }) {
+  const { t } = useLanguage()
   const [conversations, setConversations] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])

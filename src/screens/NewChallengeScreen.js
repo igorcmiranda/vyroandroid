@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, FlatList, TouchableOpacity,
@@ -9,6 +10,7 @@ import auth from '@react-native-firebase/auth'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 export default function NewChallengeScreen({ navigation }) {
+  const { t } = useLanguage()
   const [isGroup, setIsGroup] = useState(false)
   const [followingUsers, setFollowingUsers] = useState([])
   const [selected, setSelected] = useState([])

@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:612070191376:android:21dbbeec46ce7568c13595",
+        "mobilesdk_app_id": "1:612070191376:android:870598d06e3e3933c13595",
         "android_client_info": {
-          "package_name": "com.vyroandroid"
+          "package_name": "com.igormiranda.vyroapp"
         }
       },
       "oauth_client": [],

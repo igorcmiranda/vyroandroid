@@ -1,3 +1,4 @@
+import { useLanguage } from '../context/LanguageContext'
 import React, { useState } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity,
@@ -51,6 +52,7 @@ const PLANS = [
 ]
 
 export default function SubscriptionScreen({ navigation }) {
+  const { t } = useLanguage()
   const [selected, setSelected] = useState('standard')
   const [showCheckout, setShowCheckout] = useState(false)
   const [checkoutSuccess, setCheckoutSuccess] = useState(false)

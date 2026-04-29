@@ -1,6 +1,37 @@
-pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
-plugins { id("com.facebook.react.settings") }
-extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        google()
+        mavenCentral()
+        maven { url = uri("$rootDir/../node_modules/expo/android/maven") }
+    }
+    includeBuild("../node_modules/@react-native/gradle-plugin")
+    includeBuild("../node_modules/expo-modules-autolinking/android/expo-gradle-plugin")
+    includeBuild("../node_modules/expo-modules-core/expo-module-gradle-plugin")
+}
+
+plugins {
+    id("com.facebook.react.settings")
+    // id("expo-autolinking-settings")   // comentado temporariamente para evitar erro
+}
+
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+    ex.autolinkLibrariesFromCommand()
+}
+
 rootProject.name = 'VyroAndroid'
+
 include ':app'
-includeBuild('../node_modules/@react-native/gradle-plugin')
+
+// Módulo manual que você já tinha
+include ':react-native-async-storage_async-storage'
+project(':react-native-async-storage_async-storage').projectDir = new File(rootProject.projectDir, '../node_modules/@react-native-async-storage/async-storage/android')
+
+// Tentativa de incluir o expo-gradle-plugin (se existir)
+def expoAutolinkingPath = "../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"
+if (new File(rootDir, expoAutolinkingPath).exists()) {
+    includeBuild(expoAutolinkingPath)
+    println "✅ expo-gradle-plugin incluído com sucesso"
+} else {
+    println "⚠️ expo-gradle-plugin não encontrado em: $expoAutolinkingPath"
+}

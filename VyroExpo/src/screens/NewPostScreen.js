@@ -5,7 +5,7 @@ import {
   TextInput, ScrollView, ActivityIndicator,
   Alert, Dimensions, Image, Platform
 } from 'react-native'
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker'
+import * as ImagePicker from 'expo-image-picker'
 import { PermissionsAndroid } from 'react-native'
 import storage from '@react-native-firebase/storage'
 import firestore from '@react-native-firebase/firestore'

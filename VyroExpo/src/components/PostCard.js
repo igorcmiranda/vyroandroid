@@ -5,7 +5,7 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform,
   TouchableWithoutFeedback, Alert
 } from 'react-native'
-import FastImage from 'react-native-fast-image'
+import { Image } from 'expo-image'
 import firestore from '@react-native-firebase/firestore'
 import auth from '@react-native-firebase/auth'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -30,10 +30,10 @@ const CarouselItem = memo(function CarouselItem({ item, isVisible }) {
     )
   }
   return (
-    <FastImage
+    <Image
       style={{ width, height: width * 1.25 }}
-      source={{ uri: item.url, priority: FastImage.priority.normal }}
-      resizeMode={FastImage.resizeMode.cover}
+      source={item.url}
+      contentFit="cover"
     />
   )
 })
@@ -49,10 +49,10 @@ const SimpleMedia = memo(function SimpleMedia({ post, isVisible }) {
     )
   }
   return (
-    <FastImage
+    <Image
       style={{ width, height: width * 1.25 }}
-      source={{ uri: post.mediaURL, priority: FastImage.priority.normal }}
-      resizeMode={FastImage.resizeMode.cover}
+      source={item.url}
+      contentFit="cover"
     />
   )
 })
@@ -251,11 +251,12 @@ export default function PostCard({
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.userInfo} onPress={onPressProfile}>
-          <FastImage
+          <Image
             style={[styles.avatar, isPinned && styles.avatarPinned]}
-            source={post.userAvatarURL
-              ? { uri: post.userAvatarURL, priority: FastImage.priority.normal }
-              : require('../assets/avatar_placeholder.png')
+            source={
+              post.userAvatarURL
+                ? post.userAvatarURL
+                : require('../assets/avatar_placeholder.png')
             }
           />
           <View>
@@ -380,7 +381,7 @@ export default function PostCard({
                         }
                       }}
                     >
-                      <FastImage
+                      <Image
                         style={styles.commentAvatar}
                         source={item.userAvatarURL
                           ? { uri: item.userAvatarURL }

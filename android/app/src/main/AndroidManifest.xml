@@ -2,9 +2,11 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.vyroandroid">
 
+    <!-- Permissões gerais do app -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -13,7 +15,26 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
 
+    <!-- ── Health Connect — leitura de dados de saúde ──────────── -->
+    <uses-permission android:name="android.permission.health.READ_STEPS"/>
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED"/>
+    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED"/>
+    <uses-permission android:name="android.permission.health.READ_DISTANCE"/>
+    <!-- ─────────────────────────────────────────────────────────── -->
+
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Declara que este app pode comunicar com o Health Connect -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+        <package android:name="com.sec.android.app.shealth" />
+        <intent>
+            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+        </intent>
+        <intent>
+            <action android:name="androidx.health.ACTION_MANAGE_HEALTH_PERMISSIONS" />
+        </intent>
+    </queries>
 
     <application
         android:name=".MainApplication"
@@ -36,22 +57,33 @@
             android:windowSoftInputMode="adjustResize"
             android:exported="true"
             android:hardwareAccelerated="true">
-
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
         </activity>
+
+        <!-- ── Health Connect: tela obrigatória de privacidade ───── -->
+        <!--
+            O Google EXIGE esta Activity para publicar na Play Store.
+            É acionada quando o usuário acessa permissões do Health Connect.
+        -->
+        <activity
+            android:name=".HealthConnectPrivacyActivity"
+            android:exported="true"
+            android:label="Privacidade — Dados de Saúde">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+        <!-- ─────────────────────────────────────────────────────── -->
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@mipmap/ic_launcher" />
-
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/white" />
-
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="vyro_notifications"
